@@ -1,0 +1,7 @@
+{
+  "base_commit": "bc150f50299199599673614f80d12a196f377655",
+  "base_tag": "v0.20.2",
+  "patch": "vllm-0.20.2-asd.patch",
+  "purpose": "DFlash layer mapping, Ascend V2 DFlash configuration and dependency compatibility",
+  "apply": "git apply --check /path/to/vllm-ascend/patches/vllm-0.20.2-asd.patch; git apply /path/to/vllm-ascend/patches/vllm-0.20.2-asd.patch"
+}

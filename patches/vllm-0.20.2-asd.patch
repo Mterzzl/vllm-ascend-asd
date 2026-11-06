@@ -1,0 +1,69 @@
+diff --git a/requirements/common.txt b/requirements/common.txt
+index 5d4519204ee9bd755e06e3a9db081cae57f5dd5c..31630b37f39e73d43a167640dccb752e14609456 100644
+--- a/requirements/common.txt
++++ b/requirements/common.txt
+@@ -32,7 +32,10 @@ pyzmq >= 25.0.0
+ msgspec
+ gguf >= 0.17.0
+ mistral_common[image] >= 1.11.0
+-opencv-python-headless >= 4.13.0    # required for video IO
++# Local Ascend compatibility: triton-ascend 3.2.1 pins numpy==1.26.4,
++# whereas the upstream OpenCV 4.13 wheels require numpy>=2. Keep this
++# environment-only delta explicit; it does not change ASD or text-model code.
++opencv-python-headless == 4.11.0.86
+ pyyaml
+ six>=1.16.0; python_version > '3.11' # transitive dependency of pandas that needs to be the latest version for python 3.12
+ setuptools>=77.0.3,<81.0.0; python_version > '3.11' # Setuptools is used by triton, we need to ensure a modern version is installed for 3.12+ so that it does not try to import distutils, which was removed in 3.12
+diff --git a/vllm/config/vllm.py b/vllm/config/vllm.py
+index 56123542ce71ef941ed1a1be2827b20d0cd93cb3..4414c3d65abc3d408ba57b2772e754c71bdbb084 100644
+--- a/vllm/config/vllm.py
++++ b/vllm/config/vllm.py
+@@ -1807,6 +1807,12 @@ class VllmConfig:
+         if (
+             self.speculative_config is not None
+             and self.speculative_config.method not in ("eagle", "eagle3", "mtp")
++            # This checkout has an Ascend-specific DFlash V2 adapter. Other
++            # platforms still use the release's original speculator factory.
++            and not (
++                self.speculative_config.method == "dflash"
++                and self.device_config.device_type == "npu"
++            )
+         ):
+             unsupported.append(f"speculative method '{self.speculative_config.method}'")
+
+diff --git a/vllm/v1/worker/gpu/spec_decode/eagle/eagle3_utils.py b/vllm/v1/worker/gpu/spec_decode/eagle/eagle3_utils.py
+index d805c88582159d579999213498d508e4dba98933..aede3f2179e2225b85bc3cc90ffe5fc5a0d5b59b 100644
+--- a/vllm/v1/worker/gpu/spec_decode/eagle/eagle3_utils.py
++++ b/vllm/v1/worker/gpu/spec_decode/eagle/eagle3_utils.py
+@@ -38,9 +38,12 @@ def get_eagle3_aux_layers_from_config(
+     if not (spec_config and spec_config.draft_model_config):
+         return None
+     hf_config = spec_config.draft_model_config.hf_config
+-    if not hasattr(hf_config, "eagle_aux_hidden_state_layer_ids"):
+-        return None
+-    layer_ids = hf_config.eagle_aux_hidden_state_layer_ids
++    layer_ids = getattr(hf_config, "eagle_aux_hidden_state_layer_ids", None)
++    if not layer_ids:
++        dflash_config = getattr(hf_config, "dflash_config", None)
++        if isinstance(dflash_config, dict):
++            # DFlash config numbers decoder layers, not the embedding slot.
++            layer_ids = [i + 1 for i in (dflash_config.get("target_layer_ids") or [])]
+     if layer_ids and isinstance(layer_ids, (list, tuple)):
+         return tuple(layer_ids)
+     return None
+diff --git a/vllm/v1/worker/gpu_model_runner.py b/vllm/v1/worker/gpu_model_runner.py
+index caf3bfdfc3a80d661ee4591e732d25bd0e6d7b2d..b91c2a9012ff3a5ce80969b240a56e2d2be3e72c 100644
+--- a/vllm/v1/worker/gpu_model_runner.py
++++ b/vllm/v1/worker/gpu_model_runner.py
+@@ -4962,7 +4962,10 @@ class GPUModelRunner(
+         if not layer_ids:
+             dflash_config = getattr(hf_config, "dflash_config", None)
+             if dflash_config and isinstance(dflash_config, dict):
+-                layer_ids = dflash_config.get("target_layer_ids")
++                # DFlash IDs are zero-based decoder layers; slot 0 is embedding.
++                layer_ids = [
++                    i + 1 for i in (dflash_config.get("target_layer_ids") or [])
++                ]
+
+         if layer_ids and isinstance(layer_ids, (list, tuple)):
+             return tuple(layer_ids)

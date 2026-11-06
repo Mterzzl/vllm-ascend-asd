@@ -1,0 +1,31 @@
+{
+  "reference_repository": "https://github.com/Kissmetothemoon/ASD",
+  "reference_commit": "9426ce7b3b8cafb2d34f675a5bb9db2ebf0259f6",
+  "files": [
+    {
+      "file": "asd_reference/budget.py",
+      "source": "/home/ma-user/work/src/v0202/vllm-ascend-official-asd/references/ASD-official/src/asd/budget.py",
+      "sha256": "35f622efd693957d6806090c8cbebb4537e03a64339c9a1005b2d91985eebb25"
+    },
+    {
+      "file": "asd_reference/config.py",
+      "source": "/home/ma-user/work/src/v0202/vllm-ascend-official-asd/references/ASD-official/src/asd/config.py",
+      "sha256": "f897d19d13fc1406336c196bdc4314228ccbc720a297efb9125e8dd2c1d60783"
+    },
+    {
+      "file": "asd_reference/LICENSE",
+      "source": "/home/ma-user/work/src/v0202/vllm-ascend-official-asd/references/ASD-official/LICENSE",
+      "sha256": "6d96c5aa2478864c4b1d1ea6a5bcd67f8df1b8dcbd072c2247d91455bd24d8f2"
+    },
+    {
+      "file": "asd_score_pre_optimization.py",
+      "source": "/home/ma-user/work/src/v0202/vllm-ascend-official-asd/setup/asd_perf_20261105/asd_before.py",
+      "sha256": "b76d309877b84f8703cfaf950105ad34e9091b595740611c1dda6a014c0ad569"
+    },
+    {
+      "file": "asd_score_pre_decoupling.py",
+      "source": "/home/ma-user/work/src/v0202/vllm-ascend-official-asd/setup/asd_decoupling_20261105/before/vllm_ascend/ops/triton/spec_decode/asd_score.py",
+      "sha256": "f1f3df2794bb050327c05b6c4503bc681a516e2e17473adde4a95fc107609ae4"
+    }
+  ]
+}
