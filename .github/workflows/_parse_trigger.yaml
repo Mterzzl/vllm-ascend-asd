@@ -73,7 +73,7 @@ jobs:
     steps:
       - name: Parse trigger
         id: parse
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const eventName = context.eventName;
@@ -173,7 +173,7 @@ jobs:
     steps:
       - name: Resolve actor, SHA and /e2e comment body
         id: resolve
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             let actor, prSha, prNumber, prAuthor, commentBody;
