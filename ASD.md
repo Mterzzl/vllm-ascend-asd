@@ -110,49 +110,60 @@ B 和 g 必须是可用 FP32 表示的有限非负数，M 必须为非负整数�
 
 配套 vLLM 修改保存在 `patches/vllm-0.20.2-asd.patch`，基线提交为 `bc150f50299199599673614f80d12a196f377655`。在该版本的 vLLM 源码目录中先执行 `git apply --check /实际路径/vllm-ascend/patches/vllm-0.20.2-asd.patch`，检查通过后执行 `git apply /实际路径/vllm-ascend/patches/vllm-0.20.2-asd.patch`。
 
-本机项目环境位于：
+### 启动脚本
 
-```text
-/home/ma-user/work/src/v0202/vllm-ascend-official-asd/.venv
-```
-
-目标与草稿必须配套。下面使用 Qwen3-32B 和对应 DFlash 草稿，K=15、TP2。
+示例脚本：`examples/spec_decode/run_dflash_asd.sh`。先激活已安装本项目的 Python 环境并加载 CANN、ATB，然后从仓库根目录执行：
 
 ```bash
-cd /home/ma-user/work/src/v0202/vllm-ascend-official-asd
-
-bash run_env.sh env \
-  ASCEND_RT_VISIBLE_DEVICES=0,1 \
-  VLLM_USE_V1=1 \
-  VLLM_USE_V2_MODEL_RUNNER=1 \
-  VLLM_WORKER_MULTIPROC_METHOD=spawn \
-  HCCL_OP_EXPANSION_MODE=AIV \
-  VLLM_ASCEND_ENABLE_ASD=1 \
-  VLLM_ASCEND_ASD_RISK_BUDGET=8 \
-  VLLM_ASCEND_ASD_MAX_REGRET_PER_VALUE=0.25 \
-  VLLM_ASCEND_ASD_MAX_RELAXED_TOKENS_PER_BLOCK=2 \
-  python -m vllm.entrypoints.cli.main serve \
+bash examples/spec_decode/run_dflash_asd.sh \
   /home/ma-user/work/models/Qwen3-32B \
-  --trust-remote-code \
-  --generation-config vllm \
-  --dtype bfloat16 \
-  --tensor-parallel-size 2 \
-  --distributed-executor-backend mp \
-  --gpu-memory-utilization 0.9 \
-  --max-model-len 4096 \
-  --max-num-batched-tokens 528 \
-  --max-num-seqs 16 \
-  --seed 0 \
-  --no-enforce-eager \
-  --enable-prefix-caching \
-  --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
-  --speculative-config '{"method":"dflash","model":"/home/ma-user/work/models/qwen3-32b-dflash-en-zh","draft_tensor_parallel_size":2,"num_speculative_tokens":15}' \
-  --served-model-name qwen3-32b-dflash-asd \
-  --host 127.0.0.1 \
-  --port 8815
+  /home/ma-user/work/models/qwen3-32b-dflash-en-zh
 ```
 
-`run_env.sh` 用于本机选择独立 Python 环境和源码目录。在已经配置好环境的其他部署中，可以直接设置上述环境变量，再执行 `python -m vllm.entrypoints.cli.main serve ...`。
+脚本默认开启 ASD，使用 V2、K15、TP2、BF16、前缀缓存和 `FULL_DECODE_ONLY`；默认 B=8、g=.25、M=2。逻辑设备默认为 `0,1`，服务监听 `127.0.0.1:8815`。目标与草稿模型路径是两个必填参数。
+
+通过环境变量调整参数，例如 K8：
+
+```bash
+ASD_K=8 \
+VLLM_ASCEND_ASD_RISK_BUDGET=8 \
+VLLM_ASCEND_ASD_MAX_REGRET_PER_VALUE=0.25 \
+VLLM_ASCEND_ASD_MAX_RELAXED_TOKENS_PER_BLOCK=2 \
+bash examples/spec_decode/run_dflash_asd.sh /path/to/target /path/to/draft
+```
+
+只打印配置和完整命令，不加载模型：
+
+```bash
+bash examples/spec_decode/run_dflash_asd.sh --dry-run /path/to/target /path/to/draft
+bash examples/spec_decode/run_dflash_asd.sh --help
+```
+
+常用附加变量：
+
+| 变量 | 默认值 | 含义 |
+|---|---|---|
+| `ASD_PYTHON` | `python` | 当前已配置环境的 Python 可执行文件 |
+| `ASD_K` | `15` | 草稿候选数量 |
+| `ASD_TP` | `2` | 目标模型 TP |
+| `ASD_DRAFT_TP` | 与 `ASD_TP` 相同 | 草稿模型 TP |
+| `ASD_PORT` | `8815` | HTTP 端口 |
+| `ASD_MAX_NUM_SEQS` | `16` | 服务调度容量 |
+| `ASD_MAX_BATCHED_TOKENS` | `528` | 批次 token 数上限 |
+
+完整变量列表见脚本 `--help`。脚本在前台运行，日志输出到终端。
+
+本机也可以使用已经配置好的项目环境包装器：
+
+```bash
+bash /home/ma-user/work/src/v0202/vllm-ascend-official-asd/run_env.sh env \
+  VLLM_USE_V2_MODEL_RUNNER=1 \
+  bash /home/ma-user/work/src/v0202/vllm-ascend-official-asd/vllm-ascend/examples/spec_decode/run_dflash_asd.sh \
+  /home/ma-user/work/models/Qwen3-32B \
+  /home/ma-user/work/models/qwen3-32b-dflash-en-zh
+```
+
+包装器会清理继承的环境，所以自定义 `ASD_K` 等参数应放在 `run_env.sh env` 后面。`VLLM_USE_V2_MODEL_RUNNER` 已存在时，脚本会保留其值；本机包装器调用中显式设置为 1。
 
 当前 DFlash V2 注意力路径支持 K≤15。K15 表示 15 个草稿候选，对应 16 个验证位置。`max_num_batched_tokens` 至少覆盖 `max_num_seqs × (K+1)`。
 
